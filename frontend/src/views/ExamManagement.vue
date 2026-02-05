@@ -11,7 +11,7 @@ const $toast = getCurrentInstance()?.appContext.config.globalProperties.$toast;
 
 
 const HELICOPTER_TYPES = [
-  "AH-1W", "OH-58D"
+  "AH-1W", "OH-58D" ,"飛彈"
 ]
 
 const selected_helicoper_type = ref(HELICOPTER_TYPES[0]);

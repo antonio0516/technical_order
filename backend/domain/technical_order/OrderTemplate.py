@@ -24,6 +24,10 @@ class OrderTemplate:
                 "type": "select",
             },
             {
+                "name": "選項",
+                "type": "select",
+            },
+            {
                 "name": "輔助圖片",
                 "type": "file-multiple",
             },

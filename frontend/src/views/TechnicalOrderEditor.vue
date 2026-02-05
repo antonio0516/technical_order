@@ -33,6 +33,7 @@ const mainClassStore = useMainClassStore();
 const technicalOrderStore = useTechnicalOrderStore();
 const tagStore = useTagStore();
 
+
 watch(
   () => mainClassStore.getItems,
   (newVal) => {
@@ -80,13 +81,19 @@ const onSelectedMainClassChange = async (newMainClassId: string) => {
       {
         main_class: "all",
         sub_class: "全部",
+        option_class: "全部",
       },
     ];
     mainClassStore.selectedSubClass.sub_class = "全部";
   }
   await mainClassStore.selectMainClass(newMainClassId);
   await get_filter_result(newMainClassId);
+
+  mainClassStore.originalMainClassId.original_id = mainClassStore.selectedMainClass.original_id;
+
+
   mainClassStore.selectedSubClass.sub_class = "全部";
+  mainClassStore.selectedOptionClass.option_class = "全部";
   // technicalOrderStore.resetRenderIndexLimit();
 };
 
@@ -94,11 +101,18 @@ const onSelectedTagChange = (newTagIdList: any) => {
   // technicalOrderStore.resetRenderIndexLimit();
 };
 
-const onSelectedSubClassChange = (newSubClass: string) => {
-  // technicalOrderStore.resetRenderIndexLimit();
-  // console.log(newSubClass);
-  // console.log(newName);
-  // get_filter_result();
+const onSelectedSubClassChange = async (newSubClass: string) => {
+  const mainClassStore = useMainClassStore();
+  if (newSubClass === "全部") {
+    mainClassStore.filterOptionClasses = [{ option_class: "全部" }];
+    mainClassStore.selectedOptionClass.option_class = "全部";
+  } else {
+    await mainClassStore.updateOptionClasses(mainClassStore.selectedMainClass._id, newSubClass);
+    mainClassStore.selectedOptionClass.option_class = "全部";
+  }
+};
+const onSelectedOptionClassChange = (value: string) => {
+  
 };
 
 const get_filter_result = async (newMainClassId: string) => {
@@ -191,7 +205,12 @@ const saveCurrentVersion = async () => {
               item-value="sub_class" variant="outlined" v-model="mainClassStore.selectedSubClass.sub_class"
               @update:modelValue="onSelectedSubClassChange" />
           </div>
-
+          <div v-if="currentPage == 'manual'">
+            <div class="class-title mb-1">選項：</div>
+            <v-select density="compact" :items="mainClassStore.filterOptionClasses" item-title="option_class"
+              item-value="option_class" variant="outlined" v-model="mainClassStore.selectedOptionClass.option_class"
+              @update:modelValue="onSelectedOptionClassChange" />
+          </div>
           <div v-if="currentPage == 'manual'">
             <!-- make slection check box small -->
             <div class="class-title mb-1">標籤：</div>
@@ -199,7 +218,6 @@ const saveCurrentVersion = async () => {
               v-model="tagStore.selectedTags" multiple clearable style="font-size: 5.8em !important;"
               @update:modelValue="onSelectedTagChange"></v-select>
           </div>
-
           <v-container class="mt-0">
             <v-row align="center">
               <v-col align="center" cols="12" v-if="currentPage != 'manual'">
@@ -261,7 +279,8 @@ const saveCurrentVersion = async () => {
         <order-template v-if="currentPage == 'template'" />
         <!-- pass mainClass and subClass -->
         <technical-order v-if="currentPage == 'manual'" :selected-main-class-id="mainClassStore.selectedMainClass._id"
-          :selected-sub-class="mainClassStore.selectedSubClass.sub_class" :selected-tags="tagStore.selectedTags" />
+          :selected-sub-class="mainClassStore.selectedSubClass.sub_class" :selected-tags="tagStore.selectedTags"
+          :selected-option-class="mainClassStore.selectedOptionClass.option_class"  :selected-original-main-class-id="mainClassStore.selectedMainClass.original_id"/>
         <tag v-if="currentPage == 'tag'" />
       </v-col>
     </v-row>

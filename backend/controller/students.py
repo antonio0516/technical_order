@@ -40,6 +40,12 @@ class PostStudentGradeRequest(BaseModel):
     type: str
 
 
+class PostPhysiologicalStateRequest(BaseModel):
+    exam_token: str
+    question_number: str
+    start_time: str  # 絕對時間字串（例如 ISO 8601 或 timestamp）
+
+
 @router.post("/login", status_code=200)
 async def student_login(
     request: StudentLoginRequest,
@@ -211,6 +217,51 @@ async def post_student_grade(
     )
 
     return {}
+
+##############################   更新學生作答生理狀態  ####################################
+
+
+@router.post("/physiological_state", status_code=201)
+async def post_physiological_state(
+    request: PostPhysiologicalStateRequest, authorization: str = Header(None)
+):
+    token = None
+    if authorization is not None:
+        token = authorization.split(" ")[1]
+
+    jwt_info = JWT.jwt_required(token, need_admin=False)
+
+    reporter_number = jwt_info["account"]
+
+    student = Student()
+    data = student.get_student_by_student_number(reporter_number)
+
+    if data is None:
+        raise HTTPException(status_code=404, detail="學生不存在")
+
+    if data["exam_token"] != request.exam_token:
+        raise HTTPException(status_code=400, detail="未持有合法考試 Token")
+
+    # 更新作答生理狀態（開始作答時間）
+    ok = student.update_physiological_state(
+        reporter_number,
+        request.question_number,
+        request.start_time,
+    )
+
+    if not ok:
+        raise HTTPException(status_code=500, detail="更新作答生理狀態失敗")
+
+    admin_log = AdminLog()
+    admin_log.add_log(
+        f"更新學號 {reporter_number} 的 {request.question_number} 作答時間",
+        jwt_info,
+        "更新",
+        LogType.INFO,
+    )
+
+    return {}
+
 
 
 @router.get("/score_docx", status_code=200)

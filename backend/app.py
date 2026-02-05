@@ -34,7 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from controller import admin_logs, auth, exam_config, students, users
 from controller.technical_orders import (main_classes, order_template_columns,
-                                         orders, tags, versions, option_classes) #join option_classes
+                                         orders, tags, versions, option_classes, option_classes_v2) #join option_classes
 from domain.admin_log import AdminLog
 from domain.database.database import mongo_client, mongo_database
 from domain.technical_order.Order import Order
@@ -133,6 +133,16 @@ async def lifespan(app: FastAPI):
 admin_log = AdminLog()
 
 app = FastAPI(lifespan=lifespan)
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # 可以用 ["*"] 測試，但正式環境別這樣
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth")
 api_router.include_router(users.router, prefix="/users")
@@ -147,6 +157,7 @@ api_router.include_router(
 api_router.include_router(orders.router, prefix="/technical_orders/orders")
 api_router.include_router(versions.router, prefix="/technical_orders/versions")
 api_router.include_router(option_classes.router, prefix="/technical_orders/option_classes")
+api_router.include_router(option_classes_v2.router, prefix="/technical_orders/option_classes_v2")
 origins = ["*"]
 
 app.add_middleware(

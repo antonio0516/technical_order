@@ -11,13 +11,27 @@ import MainClass from "./components/TechnicalOrderEditor/MainClass.vue";  // @->
 import InfiniteLoading from "v3-infinite-loading";
 import "v3-infinite-loading/lib/style.css";
 
+import { computed } from "vue";
+const selectedOriginalMainClassId = computed(() => props.selectedOriginalMainClassId);
+
+
 const props = defineProps({
   selectedMainClassId: {
     type: String,
     required: true,
     default: "all",
   },
+  selectedOriginalMainClassId: {
+    type: String,
+    required: true,
+    default: "all",
+  },
   selectedSubClass: {
+    type: String,
+    required: true,
+    default: "全部",
+  },
+  selectedOptionClass :{
     type: String,
     required: true,
     default: "全部",
@@ -39,9 +53,28 @@ watch(
 );
 
 watch(
+  () => selectedOriginalMainClassId.value,
+  async (newVal, oldVal) => {
+    if (newVal && newVal !== oldVal) {
+      console.log("🚀 original_id 變更:", newVal);
+      await initOrderData(newVal, props.selectedSubClass);
+    }
+  }
+);
+
+watch(
   () => props.selectedSubClass,
   async (newVal, oldVal) => {
+    //console.log("監聽結果 ", props.selectedSubClass)
     await initOrderData(props.selectedMainClassId, newVal);
+  }
+);
+
+watch(
+  () => props.selectedOptionClass,
+  async (newVal, oldVal) => {
+    // console.log("監聽結果 ", props.selectedOptionClass)
+    await initOrderData(props.selectedOptionClass, newVal);
   }
 );
 
@@ -52,6 +85,8 @@ watch(
   }
 );
 
+console.log("✅ TechnicalOrder.vue 收到的 props:", props);
+
 const orderTemplateColumnStore = useOrderTemplateColumnStore();
 const technicalOrderStore = useTechnicalOrderStore();
 const mainClassStore = useMainClassStore();
@@ -61,11 +96,13 @@ const newTechnicalOrderDialog = ref(false);
 const orderTemplateColumns: any = ref<any[]>([]);
 const mainClasses: any = ref<any[]>([]);
 const subClasses: any = reactive<any[]>([]);
+  const optionClasses: any = reactive<any[]>([]);
 const newTechnicalOrderData: any = reactive({
   stepName: "",
   stepNumber: "",
   mainClass: "",
   subClass: "",
+  optionClass: "",
   tags: [],
   image: null,
   video: null,
@@ -77,6 +114,7 @@ const editTechnicalOrderData: any = reactive({
   stepNumber: "",
   mainClass: "",
   subClass: "",
+  optionClass: "",
   tags: [],
   image: null,
   video: null,
@@ -179,11 +217,13 @@ onMounted(async () => {
     "step 步驟",
     "主目錄",
     "次目錄",
+    "選項",
     "標籤",
     "輔助圖片",
     "輔助影片",
     "輔助 PDF",
   ];
+  console.log("🔍 orderTemplateColumns:", orderTemplateColumns);
 
   orderTemplateColumns.value.sort((a: any, b: any) => {
     let indexA = sortOrder.indexOf(a.name);
@@ -215,18 +255,34 @@ const renderMoreData = async ($state: any) => {
   console.log("renderMoreData");
   let mainClass:any = props.selectedMainClassId;
   let subClass:any = props.selectedSubClass;
+  let optionClass:any = props.selectedOptionClass;
+  let originalMainClass:any = props.selectedOriginalMainClassId;
+ 
+  if (originalMainClass == "all") {
+    originalMainClass = null;
+  }
   if (mainClass == "all") {
     mainClass = null;
   }
-  if (subClass == "全部") {
-    subClass = null;
+  if (mainClass == "all") {
+    mainClass = null;
   }
+  if (originalMainClass == "全部") {
+    originalMainClass = null;
+  }
+  if (optionClass == "全部") {
+    optionClass = null;
+  }
+
   if (stopLoading.value) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     $state.loaded();
     return;
   }
-  const newData = await technicalOrderStore.getItemsWithPaging(lastId.value, mainClass, subClass);
+  console.log("原始mainClass的ID : ", mainClass)
+  console.log("現有mainClass的ID : ", originalMainClass)
+  console.log("原始subClass: ", subClass)
+  const newData = await technicalOrderStore.getItemsWithPaging(lastId.value, mainClass, subClass, optionClass, originalMainClass);
   if (newData.length > 0 && orderFirstItemIdList.value.findIndex((itemId:any) => itemId === newData[0]._id) !== -1) {
     $state.loaded();
     return;
@@ -272,7 +328,7 @@ const updateFilterOrders = () => {
 }
 
 
-const addNewTechnicalOrder = async () => {
+const addNewTechnicalOrder = async () => { 
   if (!((await newTechnicalOrderForm.value.validate()).valid)) {
     $toast?.error("表單有欄位驗證沒過", {});
     return;
@@ -280,10 +336,20 @@ const addNewTechnicalOrder = async () => {
 
   try {
     loading.value = true;
+    const selectedMainClass = mainClassStore.items.find(
+    (item) => item._id === newTechnicalOrderData.mainClass
+  );
+  if (selectedMainClass?.original_id) {
+    newTechnicalOrderData.mainClass = selectedMainClass.original_id;
+  }
+
     await technicalOrderStore.addItem(newTechnicalOrderData);
     await initOrderData(props.selectedMainClassId, props.selectedSubClass);
 
     // iterate every key and set to ""
+    console.log("Answer", props.selectedOriginalMainClassId);
+    console.log("SubClass", props.selectedSubClass);
+    console.log("optionClass 是啥", props.selectedOptionClass);
     for (let key in newTechnicalOrderData) {
       newTechnicalOrderData[key] = "";
     }
@@ -295,7 +361,7 @@ const addNewTechnicalOrder = async () => {
     newTechnicalOrderData.pdf = null;
     newTechnicalOrderData.tags = [];
 
-    await initOrderData(props.selectedMainClassId, props.selectedSubClass);
+    await initOrderData(props.selectedOriginalMainClassId, props.selectedSubClass);
     console.log(orders.value);
 
     console.log("addNewTechnicalOrder");
@@ -893,10 +959,44 @@ const updateEditOrderData = async () => {
                   subClasses.splice(0, subClasses.length);
               }
                 "></v-select>
-            <v-select v-else-if="templateColumn.type === 'select' &&
-              templateColumn.name === '次目錄'
-            " :rules="[(v: any) => !!v || '必須填寫次目錄']" v-model="newTechnicalOrderData.subClass" variant="outlined" dense
-              :items="subClasses" item-title="sub_class" item-value="sub_class"></v-select>
+              <v-select v-else-if="templateColumn.type === 'select' &&
+                templateColumn.name === '次目錄'"
+                :rules="[(v: any) => !!v || '必須填寫次目錄']"
+                v-model="newTechnicalOrderData.subClass"
+                variant="outlined"
+                dense
+                :items="subClasses"
+                item-title="sub_class"
+                item-value="sub_class"
+                @update:model-value="async () => {
+                  newTechnicalOrderData.optionClass = '';
+
+                  await mainClassStore.selectSubClass(newTechnicalOrderData.mainClass, newTechnicalOrderData.subClass);
+
+                  // 更新 optionClasses
+                  Object.assign(optionClasses, mainClassStore.getOptionClasses);
+
+                  if (mainClassStore.getOptionClasses.length === 0)
+                    optionClasses.splice(0, optionClasses.length);
+                }"
+              />
+
+              <v-select
+                v-else-if="templateColumn.type === 'select' && templateColumn.name === '選項'"
+                :rules="[(v: any) => !!v || '必須填寫選項']"
+                v-model="newTechnicalOrderData.optionClass"
+                variant="outlined"
+                dense
+                :items="Array.isArray(optionClasses) 
+                  ? optionClasses.filter(item => item?.option_class && item.option_class !== '全部') 
+                  : []"
+                item-title="option_class"
+                item-value="option_class"
+                @update:model-value="(val) => {
+                  // ✅ 記錄使用者選的選項
+                  mainClassStore.selectedOptionClass.option_class = val;
+                }"
+              />
             <v-select v-else-if="templateColumn.type === 'select-multiple' &&
               templateColumn.name === '標籤'
             " clearable item-title="name" item-value="_id" v-model="newTechnicalOrderData.tags" multiple

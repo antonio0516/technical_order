@@ -31,13 +31,19 @@ class OptionClass:
             raise HTTPException(status_code=409, detail="主目錄不存在")
 
         return result_list
-    
 
-    def get_original_main_class(self, original_id: str):
+
+    def get_original_main_class(self, _id: str):
         """
         根據 original_id 查詢所有符合的資料
         """
-        cursor = self.get_collection().find({"original_id": ObjectId(original_id)})
+        if _id == "all":
+            cursor = self.get_collection().find({})
+        else:
+            cursor = self.get_collection().find({"$or": [
+            {"_id": _id},
+            {"_id": ObjectId(_id)}
+        ]})
 
         result_list = []
         for result in cursor:
@@ -51,7 +57,7 @@ class OptionClass:
         return result_list
 
 
-    def get_original_sub_class(self, original_id: str):
+    def get_original_sub_class(self, _id: str):
         """
         TODO: validate main_class format
         """
@@ -61,7 +67,7 @@ class OptionClass:
         """
         Check if main_class already exists
         """
-        if original_id == "all":
+        if _id == "all":
             result = self.get_collection().find({})
             for document in result:
                 sub_class_list.append(
@@ -74,7 +80,7 @@ class OptionClass:
 
         else:
 
-            result = self.get_collection().find({"original_id": ObjectId(original_id)})
+            result = self.get_collection().find({"_id": ObjectId(_id)})
             for document in result:
                 sub_class_list.append(
                     {
@@ -89,62 +95,32 @@ class OptionClass:
 
         return sub_class_list
     
-    def get_original_option_class(self, original_id: str, sub_class: str):
-        """
-        TODO: validate main_class format
-        """
-
+    def get_original_option_class(self, _id: str, sub_class: str):
         option_class_list = []
 
-        """
-        Check if main_class already exists
-        """
-        if original_id == "all":
-            result = self.get_collection().find({})
-            if sub_class == 'all':
-                for document in result:
-                    for options in document["option_class"]:
-                        option_class_list.append(
-                        {
-                            "sub_class": document["sub_class"],
-                            "option_class": options,
-                        }
-                    )
-            else:
-                target = self.get_collection().find({"sub_class": sub_class})
-                for document in target:
-                    for options in document["option_class"]:
-                        option_class_list.append(
-                            {
-                                "name": document["name"],
-                                "sub_class": document["sub_class"],
-                                "option_class": options,
-                            }
-                        )
 
-        else:
-            result = self.get_collection().find({"original_id": ObjectId(original_id)})
-            if sub_class == 'all':
-                for document in result:
-                    for options in document["option_class"]:
-                        option_class_list.append(
-                        {
-                            "sub_class": document["sub_class"],
-                            "option_class": options,
-                        }
-                    )
-            else:
-                for document in result:
-                    if document["sub_class"] == sub_class:
-                        break
-                for options in document["option_class"]:
-                    option_class_list.append(
-                            {
-                                "name": document["name"],
-                                "sub_class": document["sub_class"],
-                                "option_class": options,
-                            }
-                    )
+        query = {}
+        if _id != "all":
+            try:
+                query["_id"] = ObjectId(_id)
+            except Exception:
+                query["_id"] = _id  # 如果不是 ObjectId 就直接當字串查詢
 
+        if sub_class != "all":
+            query["sub_class"] = sub_class
+
+        result = self.get_collection().find(query)
+
+        for document in result:
+            option_classes = document.get("option_class", [])
+            for option in option_classes:
+                option_class_list.append(
+                    {
+                        "sub_class": document.get("sub_class", ""),
+                        "option_class": option,
+                    }
+                )
+        print("!")
+        print(option_class_list)
+        print("")
         return option_class_list
-    

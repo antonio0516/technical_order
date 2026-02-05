@@ -9,10 +9,14 @@ export const useMainClassStore = defineStore("mainClassStore", {
     // items: [] as Item[],
     items: [] as any[],
     subClasses: [] as any[],
+    optionClasses: [] as any[],
     filterSubClasses: [] as any[],
     $toast: getCurrentInstance()?.appContext.config.globalProperties.$toast,
-    selectedMainClass: reactive({ _id: "all" as string, name: "全部" }) as any,
+    selectedMainClass: reactive({ original_id: "all", _id: "all" as string, name: "全部" }) as any,
+    originalMainClassId : reactive({original_id: "all"}) as any, 
     selectedSubClass: reactive({ main_class: "all", sub_class: "全部" }) as any,
+    selectedOptionClass: reactive({ option_class: "全部",}) as any,
+    filterOptionClasses: [] as any[], // 新增一個選項篩選的資料
     entryLoading: false,
     subClassEntryLoading: false,
     editMainClass: reactive({
@@ -28,7 +32,7 @@ export const useMainClassStore = defineStore("mainClassStore", {
         this.entryLoading = true;
 
         const response = await axios.get(
-          `${config.BACKEND_URL}/technical_orders/main_classes`, 
+          `${config.BACKEND_URL}/technical_orders/option_classes_v2`, //這裡要改一下
           {
             headers: {
               Authorization: `Bearer ${authStore().getToken}`,
@@ -36,7 +40,6 @@ export const useMainClassStore = defineStore("mainClassStore", {
           }
         );
         await this.updateSubClasses(this.selectedMainClass._id);
-
         this.items = response.data;
         console.log(this.items);
         // sort by name
@@ -57,6 +60,8 @@ export const useMainClassStore = defineStore("mainClassStore", {
 
     async addItem(className: string) {
       try {
+
+
         const response = await axios.post(
           `${config.BACKEND_URL}/technical_orders/main_classes`,
           {
@@ -167,31 +172,25 @@ export const useMainClassStore = defineStore("mainClassStore", {
         }
       }
     },
-
+////////////////////////////////////  下次須完成所在地 //////////////////////////////////////
     async updateSubClasses(id: string) {
       try {
         this.subClassEntryLoading = true;
         const response = await axios.get(
-          `${config.BACKEND_URL}/technical_orders/main_classes/${id}/sub_classes`,
+          `${config.BACKEND_URL}/technical_orders/option_classes_v2/${id}/sub_class`,
           {
             headers: {
               Authorization: `Bearer ${authStore().getToken}`,
             },
           }
         );
-
-        console.log("updateSubClasses");
-        console.log(response.data);
-
+        console.log("後端回傳的次目錄資料:", response.data);
         this.subClasses = response.data;
         // sort by name
         this.subClasses.sort((a: any, b: any) => {
-          // sort main_class first, then sub_class
-          if (a.main_class != b.main_class) {
-            return a.main_class.localeCompare(b.main_class);
-          }
-          return a.sub_class.localeCompare(b.sub_class);
+          return (a.sub_class || "").localeCompare(b.sub_class || "");
         });
+        
 
         if (id != "all") {
           this.filterSubClasses = this.subClasses;
@@ -215,7 +214,52 @@ export const useMainClassStore = defineStore("mainClassStore", {
       }
       this.subClassEntryLoading = false;
     },
-
+    async updateOptionClasses(originalId: string, subClass: string) {
+      try {
+          const response = await axios.get(
+              `${config.BACKEND_URL}/technical_orders/option_classes_v2/${originalId}/${subClass}/option_class`,
+              {
+                  headers: {
+                      Authorization: `Bearer ${authStore().getToken}`,
+                  },
+              }
+          );
+          
+          console.log("🔍 後端回傳的option資料!!!:", JSON.stringify(response.data, null, 2));
+  
+          // 🔹 確保 response.data 不是空的
+          if (!response.data || response.data.length === 0) {
+              console.warn("⚠️ 後端回傳空的選項資料，確保後端查詢有正確匹配");
+          }
+  
+          // 🔹 確保 option_class 只有物件陣列，並展開內部的選項
+          this.filterOptionClasses = response.data.flatMap((item: any) => 
+              item.option_class.map((option: string) => ({
+                  option_class: option
+              }))
+          );
+  
+          // 🔹 確保至少有 "全部" 選項
+          this.filterOptionClasses.unshift({ option_class: "全部" });
+  
+          console.log("🛠 更新後的選項:", this.filterOptionClasses);
+  
+      } catch (error: any) {
+          try {
+              console.log("錯誤狀態碼:", error.response.status);
+              this.$toast?.error(error.response.data.detail, {});
+          } catch (error: any) {
+              this.$toast?.error("後臺發生錯誤，無法取得選項目錄", {});
+          }
+      }
+    },
+    async selectSubClass(mainClassId: string, subClass: string) {
+      this.selectedSubClass.main_class = mainClassId;
+      this.selectedSubClass.sub_class = subClass;
+    
+      // 新增這行
+      await this.updateOptionClasses(mainClassId, subClass);
+    },
     async patchSubClass(
       mainClassId: string,
       oldSubClass: string,
@@ -291,14 +335,32 @@ export const useMainClassStore = defineStore("mainClassStore", {
       try {
         this.subClassEntryLoading = true;
         const response = await axios.get(
-          `${config.BACKEND_URL}/technical_orders/main_classes/${id}/sub_classes`,
+          `${config.BACKEND_URL}/technical_orders/option_classes_v2/${id}`,
           {
             headers: {
               Authorization: `Bearer ${authStore().getToken}`,
             },
           }
         );
-        this.subClasses = response.data;
+        console.log("✅ 更新 subClasses:", this.subClasses);
+        if (response.data.length > 0) {
+          const selectedItem = response.data.find((item: any) => item._id === id);
+          this.selectedMainClass.original_id = selectedItem?.original_id || "all";
+        } else {
+          this.selectedMainClass.original_id = "all";
+        }
+    
+        this.subClasses = [];
+
+        if (Array.isArray(response.data) && response.data.length > 0) {       //讓原本是物件的subclass變成陣列
+          const target = response.data[0];  // 只抓第一個主目錄（通常只回傳一筆）
+          if (target.sub_classes && Array.isArray(target.sub_classes)) {
+            this.subClasses = target.sub_classes.map((item: any) => ({
+              sub_class: item.sub_class,
+            }));
+          }
+        }
+        console.log("更新 我要檢查subClass:", this.subClasses);
       } catch (error: any) {
         try {
           console.log(error.response.status);
@@ -357,8 +419,11 @@ export const useMainClassStore = defineStore("mainClassStore", {
     getSubClasses(): any[] {
       return this.subClasses;
     },
+    getOptionClasses(): any[] {
+      return this.filterOptionClasses;
+    },
     getItemsWithAll(): any[] {
-      return [{ _id: "all", name: "全部" }, ...this.items];
+      return [{ origin_id: "all", _id: "all", name: "全部" }, ...this.items];  //修改於2025
     },
     getSelectedMainClass(): string {
       return this.selectedMainClass;

@@ -7,13 +7,15 @@ import { getCurrentInstance } from "vue";
 export const useTechnicalOrderStore = defineStore("technicalOrderStore", {
   state: () => ({
     mainClass: "" as String,
+    originalId: "" as string,
     subClass: "" as String,
+    optionClass: "" as string,
     $toast: getCurrentInstance()?.appContext.config.globalProperties.$toast,
     entryLoading: false,
   }),
   actions: {
-
-    async getItemsWithPaging(lastId: any, mainClass: any, subClass: any) {
+    
+    async getItemsWithPaging(lastId: any, mainClass: any, subClass: any, optionClass: any, originalId: any) {
       const items = []
       try {
         this.entryLoading = true;
@@ -25,14 +27,21 @@ export const useTechnicalOrderStore = defineStore("technicalOrderStore", {
         if (lastId != null) {
           queryParams["last_id"] = lastId;
         }
+        if (originalId != null){
+          queryParams["original_id"] = originalId;
+        }
         if (mainClass != null) {
           queryParams["main_class"] = mainClass;
         }
         if (subClass != null) {
           queryParams["sub_class"] = subClass;
         }
+        if (optionClass != null){
+          queryParams["option_class"] = optionClass;
+        }
+        console.log("original_id 在這裡 : ",originalId)
         const response = await axios.get(
-          `${config.BACKEND_URL}/technical_orders/orders`,
+          `${config.BACKEND_URL}/technical_orders/orders/new/order`,
           {
             params: queryParams,
             headers: {

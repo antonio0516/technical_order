@@ -6,7 +6,7 @@ from domain.database.database import mongo_database
 
 
 class Student:
-    HELICOPTER_TYPES = ["AH-1W", "OH-58D"]
+    HELICOPTER_TYPES = ["AH-1W", "OH-58D", "飛彈"]
 
     def get_student_collection(self):
         return mongo_database.student
@@ -36,6 +36,9 @@ class Student:
         )
 
     def create_student_info(self, student_number):
+        # 初始化20題的作答生理狀態，題號以純數字字串表示 1~20
+        physiological_state = {str(i): -1 for i in range(1, 21)}
+        
         student_data = {
             "student_number": str(student_number),
             "exam_token": token_urlsafe(16),
@@ -43,6 +46,7 @@ class Student:
                 helicopter_type: False for helicopter_type in self.HELICOPTER_TYPES
             },
             "grade": {helicopter_type: -1 for helicopter_type in self.HELICOPTER_TYPES},
+            "作答生理狀態": physiological_state,
             "password": token_hex(5),
         }
 
@@ -72,3 +76,21 @@ class Student:
         self.get_student_collection().update_one(
             {"_id": ObjectId(id)}, {"$set": {"exam_flag": exam_flag}}
         )
+
+    def update_physiological_state(self, student_number: str, question_number: str, start_time):
+        """更新指定題目的作答開始時間。start_time 為絕對時間（字串或 timestamp 皆可）。"""
+        student = self.get_student_by_student_number(student_number)
+        if student is None:
+            return False
+
+        physiological_state = student.get("作答生理狀態", {})
+
+        # 若題號不存在則建立，存在則覆寫（題號預期為純數字字串，例如 "1"）
+        physiological_state[question_number] = start_time
+
+        self.get_student_collection().update_one(
+            {"student_number": str(student_number)},
+            {"$set": {"作答生理狀態": physiological_state}},
+        )
+        return True
+

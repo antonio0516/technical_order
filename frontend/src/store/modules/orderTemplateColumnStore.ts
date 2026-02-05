@@ -15,6 +15,7 @@ export const useOrderTemplateColumnStore = defineStore(
         "step 步驟",
         "主目錄",
         "次目錄",
+        "選項",
         "輔助圖片",
         "輔助影片",
         "輔助 PDF",

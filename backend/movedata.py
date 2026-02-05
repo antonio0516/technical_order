@@ -24,6 +24,7 @@ def db_for_subclass():
     return mongo_database["db_for_subclass"]
 
 
+
 cursor = db_for_subclass().find({})
 main_class_list = []
 
